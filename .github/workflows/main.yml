@@ -1,0 +1,30 @@
+on: push
+      
+name: Reproducibility
+
+jobs:
+  render:
+    name: Render assignment
+    runs-on: self-hosted
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Package Dependencies
+        run: |-
+          Rscript -e "install.packages('remotes', repos = 'https://packagemanager.rstudio.com/all/__linux__/focal/latest')"
+          Rscript -e "remotes::install_deps(dependencies = TRUE, repos = 'https://packagemanager.rstudio.com/all/__linux__/focal/latest')"
+      - name: FTP download
+        run: |-
+          Rscript -e "download.file('ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/north/daily/data/N_seaice_extent_daily_v3.0.csv', 'assignment/N_seaice_extent_daily_v3.0.csv')"
+      - name: Render assignment
+        run: |-
+          Rscript -e "lapply(fs::dir_ls('assignment', glob='*.Rmd', recurse=TRUE), rmarkdown::render, envir = globalenv())"
+      - name: Commit results
+        run: |
+          git config --local user.name "$GITHUB_ACTOR"
+          git config --local user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          git add assignment/*.csv
+          git commit -m 'add FTP data'  || echo "No changes to commit"
+          git commit ${RMD_PATH[*]/.Rmd/.md} -m 'Re-build Rmarkdown files' || echo "No changes to commit"
+          git push origin || echo "No changes to commit"
